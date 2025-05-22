@@ -17,6 +17,7 @@ Using a MachineConfig ensures:
 ## 📁 Files Included
 .
 ├── ssh-key-master.yaml   # For master nodes
+
 └── ssh-key-worker.yaml   # For worker nodes
 
 ---
