@@ -15,14 +15,13 @@ Using a MachineConfig ensures:
 ---
 
 ## 📁 Files Included
-.
-├── ssh-key-master.yaml   # For master nodes
+
+├── ssh-key-master.yaml   # For master nodes<br>
 └── ssh-key-worker.yaml   # For worker nodes
 
 ---
 
-✍️ Step 1: Create master conifg:
-
+✍️ Step 1: Create master conifg:<br>
 vim ssh-key-master.yaml
 ```bash
 
