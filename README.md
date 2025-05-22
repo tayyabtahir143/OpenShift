@@ -21,7 +21,8 @@ Using a MachineConfig ensures:
 
 ---
 
-✍️ Step 1: Create master conifg
+✍️ Step 1: Create master conifg:
+
 vim ssh-key-master.yaml
 ```bash
 
