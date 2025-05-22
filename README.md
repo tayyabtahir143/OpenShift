@@ -18,7 +18,7 @@ Using a MachineConfig ensures:
 .
 ├── ssh-key-master.yaml   # For master nodes
 
-└── ssh-key-worker.yaml   # For worker nodes
+  └── ssh-key-worker.yaml   # For worker nodes
 
 ---
 
