@@ -15,10 +15,16 @@ Using a MachineConfig ensures:
 ---
 
 ## 📁 Files Included
-
-```bash
 .
-├── 99-add-ssh-key-master.yaml   # For master nodes
+├── ssh-key-master.yaml   # For master nodes
+└── ssh-key-worker.yaml   # For worker nodes
+
+---
+
+✍️ Step 1: Create master conifg
+vim ssh-key-master.yaml
+```bash
+
 apiVersion: machineconfiguration.openshift.io/v1
 kind: MachineConfig
 metadata:
@@ -34,8 +40,9 @@ spec:
         - name: core
           sshAuthorizedKeys:
             - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD... your-public-key-here ...
-
-└── 99-add-ssh-key-worker.yaml   # For worker nodes
+```
+Vim ssh-key-worker.yaml
+```bash
 apiVersion: machineconfiguration.openshift.io/v1
 kind: MachineConfig
 metadata:
@@ -53,3 +60,33 @@ spec:
             - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD... your-public-key-here ...
 
 ```
+
+---
+
+📦 Step 2: Apply it
+```bash
+oc apply -f ssh-key-worker.yaml
+oc apply -f ssh-key-master.yaml
+
+```
+---
+
+⏱️ Step 3: Watch the rollout
+```bash
+oc get mcp -w
+```
+Once you see:
+```bash
+worker   UPDATED=False   UPDATING=True
+```
+You’re golden 🌟
+
+---
+
+🧪 Step 4: Confirm Key Access
+Wait for nodes to update, then SSH in:
+
+```bash
+ssh core@worker1
+```
+
