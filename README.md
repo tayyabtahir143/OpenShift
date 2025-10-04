@@ -182,7 +182,7 @@ If you must keep a search domain on clients but want to “catch” doubled name
 # /etc/dnsmasq.conf
 address=/.apps.bm.tayyabtahir.com/192.168.8.28
 address=/apps.bm.tayyabtahir.com.bm.tayyabtahir.com/192.168.8.28
-systemctl reload dnsmasq
+systemctl restart dnsmasq
 ```
 Reducing/avoiding public wildcards (*.bm.tayyabtahir.com) removes a whole class of “wrong but valid” answers.
 
