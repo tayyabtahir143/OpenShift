@@ -92,7 +92,7 @@ ssh core@worker1
 
 
 
-# Fix Linux DNS “search suffix” side-effects (ndots + doubled names) — copy-paste ready
+# 🌐 Fix Linux DNS “search suffix” side-effects (ndots + doubled names) — copy-paste ready 
 
 Problem in one line: Linux name resolution can silently append a search suffix (e.g. BM.tayyabtahir.com) to what you typed, so oauth-openshift.apps.bm.tayyabtahir.com gets queried as oauth-openshift.apps.bm.tayyabtahir.com.BM.tayyabtahir.com. If your public DNS has a wildcard, that “wrong but valid” name resolves to a public IP → OpenShift routes fail with tls: unrecognized name.
 
