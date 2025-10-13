@@ -229,3 +229,17 @@ A: If feasible, narrow or remove public wildcards (*.bm.tayyabtahir.com). That s
 
 Works for both KubeVirt VMs and plain Pods.
 ---
+
+##Why This Design (and Alternatives)
+
+* Linux bridge + VLAN filtering: one trunk bridge per node, many VLANs per workload via Multus. Scales better than per-VLAN bridges and avoids per-node NIC-name headaches.
+
+* NAD per VLAN: clear intent and easy selection in Pod/VM specs.
+* DHCP or Whereabouts:
+
+* Use DHCP if there’s a real DHCP server on that VLAN.
+* Use Whereabouts (static pool IPAM) if you don’t want a daemon or your VLAN has no DHCP.
+
+* Alternatives: OVS, SR-IOV, macvlan. Use those only if you need their specific properties (e.g., SR-IOV latency). For general L2 access, Linux bridge is simpler and portable.
+
+---
