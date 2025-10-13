@@ -89,7 +89,7 @@ Wait for nodes to update, then SSH in:
 ```bash
 ssh core@worker1
 ```
-
+---
 
 
 # 2. 🌐 Fix Linux DNS “search suffix” side-effects (ndots + doubled names) — copy-paste ready 
@@ -213,3 +213,19 @@ A: If feasible, narrow or remove public wildcards (*.bm.tayyabtahir.com). That s
 ---
 
 # 3 Multus Bridge Networking on OpenShift (VLAN-aware)
+
+####Give Pods/VMs plain L2 access to your company VLANs using a Linux bridge on each worker plus Multus. This guide is copy-paste ready and also explains why each piece exists (DHCP daemon, privileged SCC, etc).
+
+##What You Build
+
+* A VLAN-aware Linux bridge on target workers: `br-trunk` (same bridge name on all nodes; uplink name can differ per node).
+* NetworkAttachmentDefinitions:
+
+* `native` (untagged/native VLAN via br-trunk)
+* `vlan2` (tagged VLAN 2 using Whereabouts static pool)
+* `vlan3`, `vlan4` (tagged; DHCP)
+
+* A DHCP CNI daemon as a DaemonSet so `"ipam": "dhcp"` works reliably.
+
+Works for both KubeVirt VMs and plain Pods.
+---
