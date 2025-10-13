@@ -228,6 +228,7 @@ A: If feasible, narrow or remove public wildcards (*.bm.tayyabtahir.com). That s
 * A DHCP CNI daemon as a DaemonSet so `"ipam": "dhcp"` works reliably.
 
 Works for both KubeVirt VMs and plain Pods.
+
 ---
 
 ## Why This Design (and Alternatives)
@@ -259,3 +260,27 @@ The CNI ADD must return fast. It cannot sit around to renew leases or keep socke
 
 ---
 
+## Why Privileged / hostNetwork / hostPID
+
+The daemon needs to behave like a tiny system-level agent:
+
+* Enter pod/VM network namespaces to request DHCP on the secondary interface. That requires hostPID to find and nsenter into the sandbox netns, and CAP_SYS_ADMIN/CAP_NET_ADMIN/CAP_NET_RAW (simplest path: `privileged: true` under OpenShift’s SCC model).
+* Bind `/run/cni/dhcp.sock` on the host and interact with host paths (`-hostprefix /host`). That’s why we mount the host root (`hostPath: /`) and use hostNetwork so packets originate correctly and the socket is visible to the CNI plugin.
+* On OpenShift, the restricted PodSecurity profile doesn’t permit any of this; you must grant the privileged SCC to the service account that runs the DS.
+
+Could you try to trim privileges? Yes, with a custom SCC granting the exact caps + host access you need. The operationally simple option is the privileged SCC for this specific SA.
+
+---
+
+##What Happens If You Use `"ipam": "dhcp"` Without the Daemon
+
+* Multus calls the CNI dhcp plugin during pod sandbox creation.
+* The plugin tries to dial `/run/cni/dhcp.sock`.
+* If the daemon isn’t running, you get events like:
+
+```vbnet
+Failed to create pod sandbox: ... 
+error adding pod ... to CNI network "multus-cni-network":
+... error dialing DHCP daemon: dial unix /run/cni/dhcp.sock: no such file or directory
+
+```
