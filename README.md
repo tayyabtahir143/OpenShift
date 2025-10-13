@@ -272,7 +272,7 @@ Could you try to trim privileges? Yes, with a custom SCC granting the exact caps
 
 ---
 
-##What Happens If You Use `"ipam": "dhcp"` Without the Daemon
+## What Happens If You Use `"ipam": "dhcp"` Without the Daemon
 
 * Multus calls the CNI dhcp plugin during pod sandbox creation.
 * The plugin tries to dial `/run/cni/dhcp.sock`.
@@ -283,4 +283,23 @@ Failed to create pod sandbox: ...
 error adding pod ... to CNI network "multus-cni-network":
 ... error dialing DHCP daemon: dial unix /run/cni/dhcp.sock: no such file or directory
 
+```
+
+
+* Result: the pod sandbox isn’t created, your virt-launcher for a VM sits in ContainerCreating, and the VMI never reaches Running.
+
+If you don’t want the daemon, don’t use DHCP IPAM. Use Whereabouts (static pool) or explicit static IP config.
+
+---
+
+##Manifests (Copy/Paste)
+
+> Replace the uplink name `enp0s20f0u9u4` with your actual NIC on each node where you want `br-trunk`.
+
+**1) Service Account and SCC (one-time)**
+
+```bash
+oc get ns vms >/dev/null 2>&1 || oc create ns vms
+oc -n vms create sa cni-dhcp || true
+oc adm policy add-scc-to-user privileged -z cni-dhcp -n vms
 ```
