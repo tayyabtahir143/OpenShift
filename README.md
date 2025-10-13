@@ -448,7 +448,7 @@ spec:
           path: /
 ```
 
-> If ` /usr/libexec/cni/dhcp`  isn’t present on your nodes, use `registry.redhat.io/openshift4/ose-cni-plugins:<cluster-minor>` as the image and exec `/usr/libexec/cni/dhcp` from there (requires pull access). The host-binary approach avoids pulls.
+If ` /usr/libexec/cni/dhcp`  isn’t present on your nodes, use `registry.redhat.io/openshift4/ose-cni-plugins:<cluster-minor>` as the image and exec `/usr/libexec/cni/dhcp` from there (requires pull access). The host-binary approach avoids pulls.
 
 ---
 
