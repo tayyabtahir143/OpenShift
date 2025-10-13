@@ -292,7 +292,7 @@ If you don’t want the daemon, don’t use DHCP IPAM. Use Whereabouts (static p
 
 ---
 
-##Manifests (Copy/Paste)
+## Manifests (Copy/Paste)
 
 > Replace the uplink name `enp0s20f0u9u4` with your actual NIC on each node where you want `br-trunk`.
 
@@ -303,3 +303,149 @@ oc get ns vms >/dev/null 2>&1 || oc create ns vms
 oc -n vms create sa cni-dhcp || true
 oc adm policy add-scc-to-user privileged -z cni-dhcp -n vms
 ```
+**2) VLAN-aware Linux bridge on worker3 (repeat per node with different uplink)**
+```yaml
+# br-trunk-worker3.yaml
+apiVersion: nmstate.io/v1
+kind: NodeNetworkConfigurationPolicy
+metadata:
+  name: br-trunk-worker3
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: worker3
+  desiredState:
+    interfaces:
+    - name: br-trunk
+      type: linux-bridge
+      state: up
+      bridge:
+        options:
+          stp: { enabled: false }
+          vlan: { filtering: true }
+        port:
+        - name: enp0s20f0u9u4          # <-- CHANGE per node
+    - name: ENS_UPLINK
+      type: ethernet
+      state: up
+      ipv4: { enabled: false }
+      ipv6: { enabled: false }
+```
+
+**3) NetworkAttachmentDefinitions**
+```yaml
+# nad-native.yaml (untagged/native VLAN via br-trunk, DHCP)
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: native
+  namespace: vms
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "bridge",
+      "bridge": "br-trunk",
+      "ipam": { "type": "dhcp" }
+    }
+---
+# nad-vlan2.yaml (VLAN 2 via Whereabouts static pool)
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: vlan2
+  namespace: vms
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "bridge",
+      "bridge": "br-trunk",
+      "vlan": 2,
+      "ipam": {
+        "type": "whereabouts",
+        "range": "192.168.2.0/24",
+        "range_start": "192.168.2.100",
+        "range_end": "192.168.2.150",
+        "gateway": "192.168.2.1"
+      }
+    }
+---
+# nad-vlan3.yaml (VLAN 3 via DHCP)
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: vlan3
+  namespace: vms
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "bridge",
+      "bridge": "br-trunk",
+      "vlan": 3,
+      "ipam": { "type": "dhcp" }
+    }
+---
+# nad-vlan4.yaml (VLAN 4 via DHCP)
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: vlan4
+  namespace: vms
+spec:
+  config: |
+    {
+      "cniVersion": "0.3.1",
+      "type": "bridge",
+      "bridge": "br-trunk",
+      "vlan": 4,
+      "ipam": { "type": "dhcp" }
+    }
+```
+
+**4) DHCP CNI Daemon (uses host’s dhcp plugin)**
+```yaml
+# dhcp-daemon.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cni-dhcp-daemon
+  namespace: vms
+spec:
+  selector:
+    matchLabels:
+      app: cni-dhcp-daemon
+  template:
+    metadata:
+      labels:
+        app: cni-dhcp-daemon
+    spec:
+      serviceAccountName: cni-dhcp
+      hostNetwork: true
+      hostPID: true
+      nodeSelector:
+        node-role.kubernetes.io/worker: ""   # only on workers
+      tolerations:
+      - operator: Exists
+      priorityClassName: system-node-critical
+      containers:
+      - name: dhcp
+        image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+        command: ["/usr/bin/bash","-lc"]
+        args: ["/host/usr/libexec/cni/dhcp daemon -hostprefix /host"]
+        securityContext:
+          privileged: true
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: host-root
+          mountPath: /host
+      volumes:
+      - name: host-root
+        hostPath:
+          path: /
+```
+
+> If ` /usr/libexec/cni/dhcp`  isn’t present on your nodes, use `registry.redhat.io/openshift4/ose-cni-plugins:<cluster-minor>` as the image and exec `/usr/libexec/cni/dhcp` from there (requires pull access). The host-binary approach avoids pulls.
+
+---
