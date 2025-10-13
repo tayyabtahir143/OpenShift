@@ -37,7 +37,7 @@ spec:
       version: 3.2.0
     passwd:
       users:
-        - name: core
+        - name: core#Multus Bridge Networking on OpenShift (VLAN-aware)
           sshAuthorizedKeys:
             - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQD... your-public-key-here ...
 ```
@@ -211,3 +211,4 @@ Q: What about public wildcard DNS?
 A: If feasible, narrow or remove public wildcards (*.bm.tayyabtahir.com). That stops “wrong but valid” answers from the Internet when a doubled name escapes your network.
 
 
+# 3 Multus Bridge Networking on OpenShift (VLAN-aware)
