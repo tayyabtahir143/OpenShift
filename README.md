@@ -214,9 +214,9 @@ A: If feasible, narrow or remove public wildcards (*.bm.tayyabtahir.com). That s
 
 # 3 Multus Bridge Networking on OpenShift (VLAN-aware)
 
-####Give Pods/VMs plain L2 access to your company VLANs using a Linux bridge on each worker plus Multus. This guide is copy-paste ready and also explains why each piece exists (DHCP daemon, privileged SCC, etc).
+#### Give Pods/VMs plain L2 access to your company VLANs using a Linux bridge on each worker plus Multus. This guide is copy-paste ready and also explains why each piece exists (DHCP daemon, privileged SCC, etc).
 
-##What You Build
+## What You Build
 
 * A VLAN-aware Linux bridge on target workers: `br-trunk` (same bridge name on all nodes; uplink name can differ per node).
 * NetworkAttachmentDefinitions:
@@ -230,7 +230,7 @@ A: If feasible, narrow or remove public wildcards (*.bm.tayyabtahir.com). That s
 Works for both KubeVirt VMs and plain Pods.
 ---
 
-##Why This Design (and Alternatives)
+## Why This Design (and Alternatives)
 
 * Linux bridge + VLAN filtering: one trunk bridge per node, many VLANs per workload via Multus. Scales better than per-VLAN bridges and avoids per-node NIC-name headaches.
 
@@ -243,3 +243,19 @@ Works for both KubeVirt VMs and plain Pods.
 * Alternatives: OVS, SR-IOV, macvlan. Use those only if you need their specific properties (e.g., SR-IOV latency). For general L2 access, Linux bridge is simpler and portable.
 
 ---
+
+## Why the DHCP Daemon Exists
+
+The CNI dhcp plugin is split in two roles:
+
+1. Short-lived CNI call (“ADD”/“DEL”) invoked by CRI-O/kubelet via Multus when a pod sandbox is created.
+2. Long-running node-local daemon that:
+
+* Opens a Unix socket at `/run/cni/dhcp.sock`.
+* Enters the target network namespace to emit DHCPDISCOVER/DHCPREQUEST and capture the lease.
+* Renews the lease periodically (T1/T2) and releases it on DEL.
+
+The CNI ADD must return fast. It cannot sit around to renew leases or keep sockets open. That’s why the dhcp plugin delegates to a daemon via `/run/cni/dhcp.sock`. No daemon = no one to talk to = failure.
+
+---
+
