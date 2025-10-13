@@ -210,5 +210,6 @@ A: In this environment, the DNS server host was the choke point that ultimately 
 Q: What about public wildcard DNS?
 A: If feasible, narrow or remove public wildcards (*.bm.tayyabtahir.com). That stops “wrong but valid” answers from the Internet when a doubled name escapes your network.
 
+---
 
 # 3 Multus Bridge Networking on OpenShift (VLAN-aware)
