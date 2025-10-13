@@ -454,3 +454,156 @@ If `/usr/libexec/cni/dhcp` is not present on your nodes, use `registry.redhat.io
 
 ---
 
+
+**Apply in Order**
+```bash
+# Namespace + SA/SCC (once)
+oc get ns vms >/dev/null 2>&1 || oc create ns vms
+oc -n vms create sa cni-dhcp || true
+oc adm policy add-scc-to-user privileged -z cni-dhcp -n vms
+oc auth can-i use scc/privileged --as "system:serviceaccount:vms:cni-dhcp"
+
+# Bridge on worker(s)
+oc apply -f br-trunk-worker3.yaml
+oc get nncp
+oc get nnce -A | grep br-trunk
+oc debug node/worker3 -- chroot /host ip link show br-trunk
+oc debug node/worker3 -- chroot /host bridge -c vlan show dev br-trunk
+
+# NADs
+oc apply -f nad-native.yaml
+oc apply -f nad-vlan2.yaml
+oc apply -f nad-vlan3.yaml
+oc apply -f nad-vlan4.yaml
+oc -n vms get net-attach-def
+
+# DHCP daemon (only if using ipam: dhcp)
+oc apply -f dhcp-daemon.yaml
+oc -n vms get pods -l app=cni-dhcp-daemon -o wide
+
+# Socket should exist:
+oc debug node/worker3 -- chroot /host ls -l /run/cni/dhcp.sock
+```
+---
+
+**Verify & Smoke Tests**
+**Pod on VLAN 3 (DHCP)**
+```bash
+cat <<'EOF' | oc apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netsmoke-vlan3
+  namespace: vms
+  annotations:
+    k8s.v1.cni.cncf.io/networks: vms/vlan3
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: worker3
+  containers:
+  - name: sh
+    image: quay.io/cybozu/ubuntu:22.04
+    command: ["bash","-lc","sleep infinity"]
+  restartPolicy: Never
+EOF
+
+oc -n vms exec netsmoke-vlan3 -- ip -4 a
+oc -n vms exec netsmoke-vlan3 -- ping -c2 <vlan3-gateway-ip>
+```
+---
+
+**Pod on VLAN 2 (Whereabouts static)**
+```bash
+cat <<'EOF' | oc apply -f -
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netsmoke-vlan2
+  namespace: vms
+  annotations:
+    k8s.v1.cni.cncf.io/networks: vms/vlan2
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: worker3
+  containers:
+  - name: sh
+    image: quay.io/cybozu/ubuntu:22.04
+    command: ["bash","-lc","sleep infinity"]
+  restartPolicy: Never
+EOF
+
+oc -n vms exec netsmoke-vlan2 -- ip -4 a
+oc -n vms exec netsmoke-vlan2 -- ping -c2 192.168.2.1
+```
+---
+
+**Attach to a VM (KubeVirt)**
+Add an interface with bridge binding and reference a NAD:
+```yaml
+spec:
+  template:
+    spec:
+      interfaces:
+        - name: vlan3
+          bridge: {}
+          model: virtio
+      networks:
+        - name: vlan3
+          multus:
+            networkName: vms/vlan3
+```
+
+Then confirm on the virt-launcher pod:
+```bash
+POD=$(oc get pod -n vms -l kubevirt.io=virt-launcher,vm=<VM_NAME> -o jsonpath='{.items[0].metadata.name}')
+oc get pod -n vms "$POD" -o json | jq -r '.metadata.annotations["k8s.v1.cni.cncf.io/networks-status"]'
+```
+
+---
+
+**Troubleshooting**
+**Pod/VM stuck with DHCP error**
+Symptoms:
+* Pod sandbox creation fails.
+* Events show:
+```bash
+error dialing DHCP daemon: dial unix /run/cni/dhcp.sock: connect: no such file or directory
+```
+Fix:
+* Ensure DS is Running on the node:
+`oc -n vms get pods -l app=cni-dhcp-daemon -o wide`
+* Ensure socket exists:
+`oc debug node/worker3 -- chroot /host ls -l /run/cni/dhcp.sock`
+* If pulling an image fails, switch to host-binary DS (this README’s version) or fix registry pull.
+
+**No IP on Whereabouts NAD**
+* Check the pool range/gateway.
+* Look for IPAM logs in the pod’s annotations and events:
+`oc describe pod <pod> | sed -n '/Events:/,$p'`
+**No traffic on VLAN**
+* Upstream trunk missing VLAN.
+* Bridge VLAN filtering not enabled.
+* vSphere PG security not set to Accept (Promiscuous/MAC Changes/Forged Transmits).
+Check on the node:
+`oc debug node/worker3 -- chroot /host bridge -c vlan show dev br-trunk`
+
+**VM stuck Scheduling (local storage)**
+* Local PV node-affinity conflict (e.g., LVMS RWO must schedule to the node that holds the PV).
+* Node taints / insufficient resources.
+
+**Security Notes**
+* Scope the DHCP DS to workers only (`nodeSelector`) and a dedicated SA with the privileged SCC.
+* The DS mounts the host root at `/host` to interact with `/run`, netns, and the host’s dhcp plugin binary. Keep this in a separate namespace (`vms`) and use only where needed.
+* If you want to avoid privileged pods entirely, use Whereabouts instead of DHCP.
+
+**Cleanup**
+```bash
+oc -n vms delete net-attach-def native vlan2 vlan3 vlan4
+oc delete nncp br-trunk-worker3
+oc -n vms delete ds cni-dhcp-daemon
+oc -n vms delete sa cni-dhcp
+```
+
+**Final Notes**
+* Standardize the bridge name (`br-trunk`) across nodes; uplink names can differ per node NNCP.
+* For VM live migration: every candidate node must have the same bridge/VLANs and the VM must use shared RWX storage (local LVMS RWO cannot live-migrate).
